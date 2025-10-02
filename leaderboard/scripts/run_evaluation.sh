@@ -1,5 +1,5 @@
-export CARLA_ROOT=carla_server # path to your carla root
-export KING_ROOT= # path to your KING root
+export CARLA_ROOT=/vegetableclean/carla_packed_linux/CARLA_0.9.15 # path to your carla root
+export KING_ROOT= /vegetableclean/carla_packed_linux/king# path to your KING root
 export CARLA_SERVER=${CARLA_ROOT}/CarlaUE4.sh
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla

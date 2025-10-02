@@ -7,20 +7,20 @@ export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
 export PYTHONPATH=$PYTHONPATH:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.10-py3.7-linux-x86_64.egg
 export PYTHONPATH=$PYTHONPATH:$(pwd -P)/leaderboard
 export PYTHONPATH=$PYTHONPATH:$(pwd -P)/scenario_runner
-
+export CUDA_VISIBLE_DEVICES=""
 
 ########### run KING generation ############
 # 4 Agents
-python generate_scenarios.py \
-    --num_agents 4 --save_path ./generation_results/agents_4 --opt_iters 100 --beta1 0.8 --beta2 0.99 --w_adv_col 3.0 --w_adv_rd 20.0
+#python generate_scenarios.py \
+#    --num_agents 4 --save_path ./generation_results/agents_4 --opt_iters 100 --beta1 0.8 --beta2 0.99 --w_adv_col 3.0 --w_adv_rd 20.0
 
 # 2 agents
-python generate_scenarios.py \
-    --num_agents 2 --save_path ./generation_results/agents_2 --opt_iters 120 --beta1 0.8 --beta2 0.99 --w_adv_col 5.0 --w_adv_rd 23.0
+#python generate_scenarios.py \
+#    --num_agents 2 --save_path ./generation_results/agents_2 --opt_iters 120 --beta1 0.8 --beta2 0.99 --w_adv_col 5.0 --w_adv_rd 23.0
 
 # 1 agent
 python generate_scenarios.py \
-    --num_agents 1 --save_path ./generation_results/agents_1 --opt_iters 150 --beta1 0.8 --beta2 0.999 --w_adv_col 0.0 --w_adv_rd 20.0
+    --num_agents 1 --save_path ./generation_results/agents_1 --opt_iters 1 --beta1 0.8 --beta2 0.999 --w_adv_col 0.0 --w_adv_rd 20.0
 
 
 echo "Overall results"

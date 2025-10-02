@@ -15,6 +15,8 @@ import carla
 
 from leaderboard.utils.route_manipulation import downsample_route
 
+import torch
+DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Track(Enum):
 
@@ -24,33 +26,40 @@ class Track(Enum):
     SENSORS = 'SENSORS'
     MAP = 'MAP'
 
-class AutonomousAgent(object):
+import torch
+DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+class AutonomousAgent(object):
     """
     Autonomous agent base class. All user agents have to be derived from this class
     """
 
-    def __init__(self, args, device='cpu', path_to_conf_file=None):
+    def __init__(self, args, device=None, path_to_conf_file=None):
+        if device is None:
+            device = DEFAULT_DEVICE
+        elif isinstance(device, str):
+            device = torch.device(device)
+        # Fallback if CUDA was requested but not available
+        if device.type == "cuda" and not torch.cuda.is_available():
+            device = torch.device("cpu")
+
+        self.device = device
         self.track = Track.SENSORS
-        #  current global plans to reach a destination
         self._global_plan = None
         self._global_plan_world_coord = None
 
-        # this data structure will contain all sensor data
-        # self.sensor_interface = SensorInterface()
-
-        # agent's initialization
-        self.setup(args, device=device, path_to_conf_file=path_to_conf_file)
+        # Call setup with consistent args
+        self.setup(args=args, device=self.device, path_to_conf_file=path_to_conf_file)
 
         self.wallclock_t0 = None
 
-    def setup(self, path_to_conf_file):
+    def setup(self, args=None, device=None, path_to_conf_file=None):
         """
-        Initialize everything needed by your agent and set the track attribute to the right type:
-            Track.SENSORS : CAMERAS, LIDAR, RADAR, GPS and IMU sensors are allowed
-            Track.MAP : OpenDRIVE map is also allowed
+        Override in subclasses
         """
-        pass
+        self.device = device or DEFAULT_DEVICE
+
+
 
     def sensors(self):  # pylint: disable=no-self-use
         """

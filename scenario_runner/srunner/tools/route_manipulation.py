@@ -9,14 +9,17 @@
 Module to manipulate the routes, by making then more or less dense (Up to a certain parameter).
 It also contains functions to convert the CARLA world location do GPS coordinates.
 """
+# Sampling resolution for GlobalRoutePlanner (in meters)
 
 import math
 import xml.etree.ElementTree as ET
 
 from agents.navigation.global_route_planner import GlobalRoutePlanner
-from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
+from agents.navigation.global_route_planner import GlobalRoutePlanner
 
 from agents.navigation.local_planner import RoadOption
+# Sampling resolution for GlobalRoutePlanner (in meters)
+SAMPLING_RESOLUTION = 2.0
 
 
 def _location_to_gps(lat_ref, lon_ref, location):
@@ -139,9 +142,13 @@ def interpolate_trajectory(world, waypoints_trajectory, hop_resolution=1.0):
     :return: the full interpolated route both in GPS coordinates and also in its original form.
     """
 
-    dao = GlobalRoutePlannerDAO(world.get_map(), hop_resolution)
-    grp = GlobalRoutePlanner(dao)
-    grp.setup()
+    dao = GlobalRoutePlanner(world.get_map(), hop_resolution)
+   # grp = GlobalRoutePlanner(world.get_map(), SAMPLING_RESOLUTION), SAMPLING_RESOLUTION)
+    grp = GlobalRoutePlanner(world.get_map(), SAMPLING_RESOLUTION)
+
+    if hasattr(grp, 'setup'):
+
+        grp.setup()
     # Obtain route plan
     route = []
     for i in range(len(waypoints_trajectory) - 1):   # Goes until the one before the last.

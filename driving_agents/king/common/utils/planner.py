@@ -2,9 +2,10 @@ import math
 from collections import deque
 import xml.etree.ElementTree as ET
 import numpy as np
+SAMPLING_RESOLUTION = 2.0  # meters
 
 from agents.navigation.global_route_planner import GlobalRoutePlanner
-from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
+from agents.navigation.global_route_planner import GlobalRoutePlanner
 
 DEBUG = False
 
@@ -106,9 +107,11 @@ def interpolate_trajectory(world_map, waypoints_trajectory, hop_resolution=1.0, 
         - hop_resolution: is the resolution, how dense is the provided trajectory going to be made
     """
 
-    dao = GlobalRoutePlannerDAO(world_map, hop_resolution)
-    grp = GlobalRoutePlanner(dao)
-    grp.setup()
+    dao = GlobalRoutePlanner(world_map, hop_resolution)
+    grp = GlobalRoutePlanner(world_map, SAMPLING_RESOLUTION)
+    if hasattr(grp, 'setup'):
+
+        grp.setup()
     # Obtain route plan
     route = []
     for i in range(len(waypoints_trajectory) - 1):   # Goes until the one before the last.

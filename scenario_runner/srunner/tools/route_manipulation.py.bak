@@ -9,13 +9,17 @@
 Module to manipulate the routes, by making then more or less dense (Up to a certain parameter).
 It also contains functions to convert the CARLA world location do GPS coordinates.
 """
+# Sampling resolution for GlobalRoutePlanner (in meters)
 
 import math
 import xml.etree.ElementTree as ET
 
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from agents.navigation.global_route_planner import GlobalRoutePlanner
+
 from agents.navigation.local_planner import RoadOption
+# Sampling resolution for GlobalRoutePlanner (in meters)
+SAMPLING_RESOLUTION = 2.0
 
 
 def _location_to_gps(lat_ref, lon_ref, location):
@@ -121,7 +125,7 @@ def downsample_route(route, sample_factor):
         # Compute the distance traveled
         else:
             curr_location = point[0].location
-            prev_location = route[i-1][0].location
+            prev_location = route[i - 1][0].location
             dist += curr_location.distance(prev_location)
 
         prev_option = curr_option
@@ -131,17 +135,15 @@ def downsample_route(route, sample_factor):
 
 def interpolate_trajectory(world, waypoints_trajectory, hop_resolution=1.0):
     """
-    Given some raw keypoints interpolate a full dense trajectory to be used by the user.
-    returns the full interpolated route both in GPS coordinates and also in its original form.
-    
-    Args:
-        - world: an reference to the CARLA world so we can use the planner
-        - waypoints_trajectory: the current coarse trajectory
-        - hop_resolution: is the resolution, how dense is the provided trajectory going to be made
+        Given some raw keypoints interpolate a full dense trajectory to be used by the user.
+    :param world: an reference to the CARLA world so we can use the planner
+    :param waypoints_trajectory: the current coarse trajectory
+    :param hop_resolution: is the resolution, how dense is the provided trajectory going to be made
+    :return: the full interpolated route both in GPS coordinates and also in its original form.
     """
 
     dao = GlobalRoutePlanner(world.get_map(), hop_resolution)
-    grp = GlobalRoutePlanner(dao)
+    grp = GlobalRoutePlanner(world.get_map(), SAMPLING_RESOLUTION)
     grp.setup()
     # Obtain route plan
     route = []
@@ -152,6 +154,8 @@ def interpolate_trajectory(world, waypoints_trajectory, hop_resolution=1.0):
         interpolated_trace = grp.trace_route(waypoint, waypoint_next)
         for wp_tuple in interpolated_trace:
             route.append((wp_tuple[0].transform, wp_tuple[1]))
+
+    # Increase the route position to avoid fails
 
     lat_ref, lon_ref = _get_latlon_ref(world)
 

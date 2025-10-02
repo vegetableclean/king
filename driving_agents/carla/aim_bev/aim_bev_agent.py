@@ -33,7 +33,7 @@ class AimBEVAgent(DataAgent):
         )
 
         self.net.load_state_dict(torch.load(os.path.join(path_to_conf_file, 'model.pth')))
-        self.net.cuda()
+        #self.net.to(self.device).eval()
         self.net.eval()
 
     def _init(self, hd_map):
@@ -88,7 +88,7 @@ class AimBEVAgent(DataAgent):
     def _get_control(self, input_data):
         if len(self.input_buffer['seg_bev']) < self.args['seq_len'] or self.step < 60:
             seg_bev = input_data['topdown'].squeeze()
-            self.input_buffer['seg_bev'].append(seg_bev.to('cuda', dtype=torch.float32))
+            self.input_buffer['seg_bev'].append(seg_bev.to(self.device, dtype=torch.float32))
             should_brake = self._get_safety_box()
 
             control = carla.VehicleControl()
@@ -101,17 +101,17 @@ class AimBEVAgent(DataAgent):
                 control.brake = 0.0
             return control
 
-        gt_velocity = torch.FloatTensor([input_data['speed']]).to('cuda', dtype=torch.float32).unsqueeze(0)
-        light_hazard = torch.FloatTensor([self.traffic_light_hazard]).to('cuda', dtype=torch.float32).unsqueeze(0)
+        gt_velocity = torch.FloatTensor([input_data['speed']]).to(self.device, dtype=torch.float32).unsqueeze(0)
+        light_hazard = torch.FloatTensor([self.traffic_light_hazard]).to(self.device, dtype=torch.float32).unsqueeze(0)
 
         input_data['target_point'] = [torch.FloatTensor([input_data['target_point'][0]]),
                                             torch.FloatTensor([input_data['target_point'][1]])]
-        target_point = torch.stack(input_data['target_point'], dim=1).to('cuda', dtype=torch.float32)
+        target_point = torch.stack(input_data['target_point'], dim=1).to(self.device, dtype=torch.float32)
 
         encoding = []
         seg_bev = input_data['topdown'].squeeze().unsqueeze(0)
 
-        self.input_buffer['seg_bev'].append(seg_bev.to('cuda', dtype=torch.float32))
+        self.input_buffer['seg_bev'].append(seg_bev.to(self.device, dtype=torch.float32))
         encoding.append(self.net.image_encoder(list(self.input_buffer['seg_bev'])))
 
         pred_wp = self.net(encoding, target_point, light_hazard=light_hazard)

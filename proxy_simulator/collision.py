@@ -8,7 +8,7 @@ EDGE_TRANSFORM = torch.tensor(
         [1, 0, 0, -1],
     ],
     dtype=torch.float32,
-    device='cuda',
+    device='cpu',
 ).reshape(1, 4, 4)
 
 
@@ -18,7 +18,7 @@ AXIS_FLIP = torch.tensor(
         [-1, 0],
     ],
     dtype=torch.float32,
-    device='cuda',
+    device='cpu',
 ).reshape(1, 2, 2)
 
 

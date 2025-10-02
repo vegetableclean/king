@@ -12,21 +12,37 @@ from driving_agents.king.aim_bev.model import AimBev
 
 def get_entry_point():
     return 'AimBEVAgent'
-
 class AimBEVAgent(AutoPilot):
-    def setup(self, args, path_to_conf_file=None, device=None):
-        super().setup(args, path_to_conf_file, device)
+    def setup(self, args, device, path_to_conf_file):
+        # ✅ Pass arguments by keyword (fixes ordering bug)
+        super().setup(args, device=device, path_to_conf_file=path_to_conf_file)
+
         self.args = args
 
+        # Load config
         args_file = open(os.path.join(path_to_conf_file, 'args.txt'), 'r')
         self.args_map_agent = json.load(args_file)
         args_file.close()
 
-        self.net = AimBev(args, 'cuda', self.args_map_agent['pred_len'], batch_size=self.args.batch_size)
+        # Build model on the proper device
+        self.net = AimBev(args, self.device, self.args_map_agent['pred_len'],
+                          batch_size=self.args.batch_size)
 
-        self.net.load_state_dict(torch.load(os.path.join(path_to_conf_file, 'model.pth')))
-        self.net.cuda()
-        self.net.eval()
+        # ✅ Load checkpoint safely (map to CPU if no GPU)
+        ckpt_path = os.path.join(path_to_conf_file, 'model.pth')
+        ckpt = torch.load(ckpt_path, map_location=self.device)
+
+        state = ckpt.get('state_dict', ckpt.get('model', ckpt))
+        if isinstance(state, dict) and any(k.startswith('module.') for k in state.keys()):
+            state = {k.replace('module.', '', 1): v for k, v in state.items()}
+
+        self.net.load_state_dict(state, strict=False)
+
+        # ✅ Finally, move to correct device
+        self.net.to(self.device).eval()
+
+
+            
 
 
     def _init(self, world):
@@ -113,7 +129,7 @@ class AimBEVAgent(AutoPilot):
         return actions
 
     def _get_position_batched(self, gps):
-        gps = (gps - torch.from_numpy(self._command_planner.mean).to(device=self.args_map_agent['device'])) * torch.from_numpy(self._command_planner.scale).to(device=self.args_map_agent['device'])
+        gps = (gps - torch.from_numpy(self._command_planner.mean)) * torch.from_numpy(self._command_planner.scale)
         return gps
 
     def destroy(self):

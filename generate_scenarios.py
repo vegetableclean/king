@@ -42,6 +42,16 @@ class GenerationEngine:
         # MISC #
         self.args = args
 
+        ## SAFE_DEVICE_BLOCK: resolve CPU/GPU once
+        import torch
+        requested = getattr(self.args, 'device', 'cpu')
+        if requested == 'cpu' or not torch.cuda.is_available():
+            self.device = torch.device('cpu')
+            self.args.device = 'cpu'
+        else:
+            self.device = torch.device('cuda')
+            self.args.device = 'cuda'
+
         # DRIVING AGENTS #
         adv_policy = BMActionSequence(
             self.args,
@@ -68,8 +78,8 @@ class GenerationEngine:
             self.args,
             ego_policy = ego_policy,
             ego_expert = AutoPilot(self.args, device=args.device),
-            adv_policy = adv_policy.to(self.args.device),
-            motion_model=BicycleModel(1/self.args.sim_tickrate).to(self.args.device),
+            adv_policy = adv_policy.to(self.device),
+            motion_model=BicycleModel(1/self.args.sim_tickrate).to(self.device)
         )
 
         # COSTS
@@ -405,11 +415,11 @@ class GenerationEngine:
         )
 
         if adv_col_cost.size(-1) == 0:
-            adv_col_cost = torch.zeros(1,1).cuda()
+            adv_col_cost = torch.zeros(1,1).to(self.device)
             assert adv_col_cost.size(0) == 1, 'This works only for batchsize 1!'
 
         adv_col_cost = torch.minimum(
-            adv_col_cost, torch.tensor([self.args.adv_col_thresh]).float().cuda()
+            adv_col_cost, torch.tensor([self.args.adv_col_thresh]).float().to(self.device)
         )
 
         adv_rd_cost = self.rd_cost_fn_rasterized(
@@ -421,46 +431,61 @@ class GenerationEngine:
 
     def get_next_route(self):
         """
-        Fetches the next batch of routes from the route iterator and returns
-        them as a list.
+        Fetches the next batch of routes, skipping any whose towns are not installed.
         """
-        route_configs = []
-        gps_routes = []
-        routes = []
-        route_config = None
-        for idx in range(self.args.batch_size):
-            route_config = self.route_indexer.next()
+        import os
+        print("[DEBUG] MAIN routes file:", os.path.abspath(self.args.routes_file))
+        route_configs, gps_routes, routes = [], [], []
+        max_attempts = self.route_indexer.total  # safety to avoid infinite loops
 
-            route_configs.append(route_config)
-            self.town = route_config.town
+        for batch_slot in range(self.args.batch_size):
+            attempts = 0
+            while attempts < max_attempts:
+                attempts += 1
 
-            if not hasattr(self, "current_town"):
-                self.simulator.set_new_town(self.args, self.town)
-                self.current_town = self.town
-            elif self.town != self.current_town:
-                self.simulator.set_new_town(self.args, self.town)
-                self.current_town = self.town
+                # Pull next route
+                route_config = self.route_indexer.next()
+                town = route_config.town
+                self.town = town  # used later by renderer/CARLA block
 
-            # this try/except guards for the carla server having died in the background
-            # for this to work carla needs to be run in a cronjob that relaunches it if
-            # it terminates unexpectedly.
-            try:
-                gps_route, route = interpolate_trajectory(
-                    self.simulator.carla_wrapper.world, route_config.trajectory
-                )
-            except RuntimeError:
-                self.simulator.carla_wrapper._initialize_from_carla(town=self.town, port=self.args.port)
-                gps_route, route = interpolate_trajectory(
-                    self.simulator.carla_wrapper.world, route_config.trajectory
-                )
+                # Load town only if needed
+                need_new_town = (not hasattr(self, "current_town")) or (town != self.current_town)
+                if need_new_town:
+                    ok = self.simulator.set_new_town(self.args, town)
+                    if not ok:
+                        # Map missing -> skip this route, try next one
+                        continue
+                    self.current_town = town
 
-            gps_routes.append(gps_route)
-            routes.append(route)
+                # Town is loaded; now compute the route
+                try:
+                    gps_route, route = interpolate_trajectory(
+                        self.simulator.carla_wrapper.world, route_config.trajectory
+                    )
+                except RuntimeError:
+                    # Server hiccup: re-init and retry once
+                    self.simulator.carla_wrapper._initialize_from_carla(town=self.town, port=self.args.port)
+                    gps_route, route = interpolate_trajectory(
+                        self.simulator.carla_wrapper.world, route_config.trajectory
+                    )
+
+                # Success; add to batch
+                route_configs.append(route_config)
+                gps_routes.append(gps_route)
+                routes.append(route)
+                break  # move to next batch slot
+
+            else:
+                # Could not find any loadable route for this slot
+                print("[INFO] No more loadable towns/routes available.")
+                break
 
         return gps_routes, routes, route_configs
 
 
+
 def main(args):
+    print(args)
     engine = GenerationEngine(args)
     engine.run()
 
@@ -529,7 +554,7 @@ if __name__ == '__main__':
     main_parser.add_argument(
         "--renderer_class",
         type=str,
-        default='STN',
+        default='CARLA',
         choices=['STN', 'CARLA'],
     )
     main_parser.add_argument(

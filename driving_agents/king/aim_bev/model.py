@@ -4,8 +4,10 @@ from torchvision import models
 
 import numpy as np
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+GPU_PI = torch.tensor(np.pi, device=DEVICE,)
 
-GPU_PI = torch.tensor(np.pi, device="cuda",)
+
 class AimBev(nn.Module):
     """
     """
@@ -109,9 +111,9 @@ class PIDController(object):
         self.batch_size = batch_size
         self.window_size = window_size
 
-        self._window = torch.zeros((batch_size, window_size), device='cuda')
-        self._max = torch.zeros((batch_size, 1), device='cuda')
-        self._min = torch.zeros((batch_size, 1), device='cuda')
+        self._window = torch.zeros((batch_size, window_size), device=DEVICE)
+        self._max = torch.zeros((batch_size, 1), device=DEVICE)
+        self._min = torch.zeros((batch_size, 1), device=DEVICE)
 
     def step(self, error):
         self._window = torch.cat((self._window[:, 1:], error), dim=1)
@@ -122,15 +124,15 @@ class PIDController(object):
             integral = torch.mean(self._window, dim=1).unsqueeze(-1)
             derivative = (self._window[:,-1] - self._window[:,-2]).unsqueeze(-1)
         else:
-            integral = torch.zeros((self.batch_size, 1), device='cuda')
-            derivative = torch.zeros((self.batch_size, 1), device='cuda')
+            integral = torch.zeros((self.batch_size, 1), device=DEVICE)
+            derivative = torch.zeros((self.batch_size, 1), device=DEVICE)
 
         return self._K_P * error + self._K_I * integral + self._K_D * derivative
     
     def reset(self):
-        self._window = torch.zeros((self.batch_size, self.window_size), device='cuda')
-        self._max = torch.zeros((self.batch_size, 1), device='cuda')
-        self._min = torch.zeros((self.batch_size, 1), device='cuda')
+        self._window = torch.zeros((self.batch_size, self.window_size), device=DEVICE)
+        self._max = torch.zeros((self.batch_size, 1), device=DEVICE)
+        self._min = torch.zeros((self.batch_size, 1), device=DEVICE)
 
 
 class ImageCNN(nn.Module):

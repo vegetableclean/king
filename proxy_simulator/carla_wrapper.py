@@ -10,6 +10,7 @@ from external_code.lbc.bird_view.utils.map_utils import MapImage # type: ignore
 PIXELS_PER_METER = 5
 
 
+
 class CarlaWrapper():
     def __init__(self, args):
         self._vehicle = None
@@ -19,10 +20,14 @@ class CarlaWrapper():
     def _initialize_from_carla(self, town='Town01', port=2000):
         self.town = town
         self.client = carla.Client('localhost', port)
-
         self.client.set_timeout(360.0)
 
-        self.world = self.client.load_world(town)
+        try:
+            self.world = self.client.load_world(town)
+        except RuntimeError as e:
+            print(f"[WARNING] Could not load map '{town}', skipping. ({e})")
+            return None, None   # graceful skip
+
         self.map = self.world.get_map()
         self.spawn_points = self.map.get_spawn_points()
 
@@ -39,3 +44,4 @@ class CarlaWrapper():
         world_offset = torch.tensor(map_image._world_offset, device=self.args.device, dtype=torch.float32)
 
         return global_map, world_offset
+

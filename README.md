@@ -1,3 +1,8 @@
+#run export CARLA_ROOT=/home/vegetableclean/carla_packed_linux/CARLA_0.9.15 
+export CARLA_EGG=$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.15-py3.7-linux-x86_64.egg 
+## (optional but harmless) also add PythonAPI utility paths
+#export PYTHONPATH=$CARLA_EGG:$CARLA_ROOT/PythonAPI/carla:$CARLA_ROOT/PythonAPI:$PYTHONPATH
+
 # KING: Generating Safety-Critical Driving Scenarios for Robust Imitation via Kinematics Gradients
 
 ## [Project Page](https://lasnik.github.io/king/) | [Paper](https://arxiv.org/pdf/2204.13683.pdf) | [Supplementary](https://lasnik.github.io/king/data/docs/KING_supplementary.pdf)

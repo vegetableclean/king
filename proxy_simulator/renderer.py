@@ -295,37 +295,27 @@ class STNRenderer(BaseRenderer):
         return grid, vehicle_rendering
 
     def get_observations(self, hd_map, ego_state, adv_state):
-        local_map = self.get_local_birdview(
-            hd_map,
-            ego_state["pos"],
-            ego_state["yaw"],
+        # local_map is the BEV crop (B x C x H x W) based on the HD map
+        local_map = self.get_local_birdview(hd_map, ego_state["pos"], ego_state["yaw"])
+
+        try:
+            obs_dict = self._fetch_carla_data(ego_state, adv_state)
+        except RuntimeError:
+            self.carla_wrapper._initialize_from_carla(town=self.town, port=self.args.port)
+            time.sleep(60)
+            self.attach_carla_wrapper(self.carla_wrapper)
+            obs_dict = self._fetch_carla_data(ego_state, adv_state)
+
+        # 🔑 Hand a BEV to Aim-BEV:
+        obs_dict['birdview'] = local_map
+
+        # Match STNRenderer API: provide a light_hazard tensor
+        obs_dict['light_hazard'] = torch.zeros(
+            (local_map.shape[0], 1), device=self.args.device, dtype=torch.float32
         )
 
-        pos = torch.cat([ego_state["pos"], adv_state["pos"]], dim=1)
-        yaw = torch.cat([ego_state["yaw"], adv_state["yaw"]], dim=1)
+        return obs_dict, local_map
 
-        birdview, _ = self.render_agent_bv(
-            local_map,
-            ego_state["pos"],
-            ego_state["yaw"],
-            pos,
-            yaw,
-        )
-
-        if self.args.gradient_clip > 0:
-            birdview = _GradientScaling.apply(birdview, self.args.gradient_clip)
-
-        light_hazard = torch.tensor(
-            [0.],
-            device=self.args.device, dtype=torch.float32
-        ).view(1, 1).expand(birdview.shape[0], -1)
-
-        observations = {
-            "birdview": birdview,
-            "light_hazard": light_hazard,
-        }
-
-        return observations, local_map
 
 
 class CARLARenderer(BaseRenderer):
@@ -363,29 +353,24 @@ class CARLARenderer(BaseRenderer):
         return points
 
     def get_observations(self, hd_map, ego_state, adv_state):
-        """
-        """
+        local_map = self.get_local_birdview(hd_map, ego_state["pos"], ego_state["yaw"])
 
-        local_map = self.get_local_birdview(
-            hd_map,
-            ego_state["pos"],
-            ego_state["yaw"],
-        )
-
-        # guard for carla server having died in the background
         try:
             obs_dict = self._fetch_carla_data(ego_state, adv_state)
         except RuntimeError:
-            # re-connect to resurrected carla server
             self.carla_wrapper._initialize_from_carla(town=self.town, port=self.args.port)
-            # allow some time to re-establish the connection
             time.sleep(60)
-            # re-attach to wrapper (so world objects etc. get updated)
             self.attach_carla_wrapper(self.carla_wrapper)
-            # try fetching observations again
             obs_dict = self._fetch_carla_data(ego_state, adv_state)
 
+        # 🔑 Provide BEV expected by Aim-BEV
+        obs_dict["birdview"] = local_map
+        obs_dict["light_hazard"] = torch.zeros(
+            (local_map.shape[0], 1), device=self.args.device, dtype=torch.float32
+        )
+
         return obs_dict, local_map
+
 
     def _fetch_carla_data(self, ego_state, adv_state):
         """
@@ -446,7 +431,7 @@ class CARLARenderer(BaseRenderer):
             traffic_light.set_green_time(100000.0)
 
         # spawn ego
-        ego_bp = self.bp_library.filter("vehicle.lincoln.mkz2017")[0]
+        ego_bp = self.bp_library.filter("vehicle.tesla.model3")[0]
         ego_bp.set_attribute('color', '255,0,0')
         ego_actor = self.world.try_spawn_actor(ego_bp, ego_transform)
         tries = 0
@@ -472,8 +457,8 @@ class CARLARenderer(BaseRenderer):
         spectator_transform.location.x += shift.x
         spectator_transform.location.y += shift.y
         spectator_transform.rotation.pitch -= 90.
-        self.world.get_spectator().set_transform(ego_transform)
-
+        self.world.get_spectator().set_transform(spectator_transform)
+        # self.world.get_spectator().set_transform(ego_transform)
         # attach camera to spectator
         camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
         camera_bp.set_attribute("image_size_x",str(1024))

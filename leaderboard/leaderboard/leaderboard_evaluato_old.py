@@ -27,8 +27,6 @@ import sys
 import carla
 import copy
 import signal
-import random
-import torch  # <<< added: used in GC debug loop
 
 from srunner.scenariomanager.carla_data_provider import *
 from srunner.scenariomanager.timer import GameTime
@@ -87,23 +85,7 @@ class LeaderboardEvaluator(object):
             self.client_timeout = float(args.timeout)
         self.client.set_timeout(self.client_timeout)
 
-        # --- Changed: DO NOT hardcode Town01 here. Defer map loading to per-route. ---
-        # Try to grab whatever world is already running; otherwise safely fall back to
-        # an installed lightweight map you have (adjust order if you prefer).
-        try:
-            self.world = self.client.get_world()
-        except RuntimeError:
-            self.world = None
-        if self.world is None:
-            for candidate in ['Town03_Opt', 'Town05_Opt', 'Town03', 'Town05', 'Town01', 'Town10HD_Opt', 'Town10HD']:
-                try:
-                    self.world = self.client.load_world(candidate)
-                    print(f"[LeaderboardEvaluator] Loaded fallback world: {candidate}")
-                    break
-                except RuntimeError:
-                    continue
-            # If still none, leave it as None; _load_and_wait_for_world will load per-route.
-
+        self.world = self.client.load_world('Town01')
         self.traffic_manager = self.client.get_trafficmanager(int(args.trafficManagerPort))
 
         dist = pkg_resources.get_distribution("carla")
@@ -371,7 +353,24 @@ class LeaderboardEvaluator(object):
         print("\033[1m> Running the route\033[0m")
 
         # Run the scenario
+        # try:
         self.manager.run_scenario()
+
+        # except AgentError as e:
+        #     # The agent has failed -> stop the route
+        #     print("\n\033[91mStopping the route, the agent has crashed:")
+        #     print("> {}\033[0m\n".format(e))
+        #     traceback.print_exc()
+
+        #     crash_message = "Agent crashed"
+
+        # except Exception as e:
+        #     print("\n\033[91mError during the simulation:")
+        #     print("> {}\033[0m\n".format(e))
+        #     traceback.print_exc()
+
+        #     crash_message = "Simulation crashed"
+        #     entry_status = "Crashed"
 
         # Stop the scenario
         try:
@@ -401,6 +400,9 @@ class LeaderboardEvaluator(object):
         """
         Run the challenge mode
         """
+        # agent_class_name = getattr(self.module_agent, 'get_entry_point')()
+        # self.agent_instance = getattr(self.module_agent, agent_class_name)(args.agent_config)
+
         route_indexer = RouteIndexer(args.routes, args.scenarios, args.repetitions)
 
         if args.resume:
@@ -417,7 +419,6 @@ class LeaderboardEvaluator(object):
             # run
             self._load_and_run_scenario(args, config)
 
-            # debug tensor leak prints (as in your original)
             for obj in gc.get_objects():
                 try:
                     if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
@@ -490,4 +491,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
